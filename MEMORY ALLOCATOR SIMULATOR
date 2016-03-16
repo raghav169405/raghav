@@ -1,0 +1,716 @@
+#include<stdio.h>
+#include<conio.h>
+#include<windows.h>
+#include<stdlib.h>
+
+#define PAGE_SIZE 5
+#define TOTAL_PAGE 20                     //used in page_allocator
+
+
+void allocate();
+void deallocate();                         //functions of block allocators
+void display();
+void gotoxy(int x, int y);
+void remove_fragmentation();
+void block_allocator();                 //block_allocator i.e variable sized blocks (create External fragmentation)
+void page_allocator();                  //page_allocator i.e fixed sized chunks in memory(create Internal_fragmentation)
+int mem_size;
+int hole;                        //holes are calculated in display()
+int block_space;                 //block_space are calculated in allocate() and deallocate()
+int arr[1000]={0};
+int temp;
+int al=0;
+int p_id1[50]={0};
+int p_id;
+int mem_reqd;
+COORD coord = {0, 0};
+int extra_flag=0;
+struct page{
+    char bit;
+    int offSet[PAGE_SIZE];
+}p[TOTAL_PAGE];
+
+struct info{
+    int prcsId;
+    int prcsLcn;
+    int pageAqr;
+}in[TOTAL_PAGE];
+
+int position=0,pageAvailable=TOTAL_PAGE;
+
+void emptyMemory(void);
+void Allocate(void);
+void Display(void);                                         //functions of page alocators
+int findPosition(int);
+void fillInfo(int,int);
+void Deallocate(void);
+int main(void)
+{
+    int choice2=1;
+    while(choice2)
+    {
+      gotoxy (25,0);
+      printf("@@--WELCOME TO MEMORY ALLOCATOR--@@");
+
+      gotoxy(10,5);
+      printf("ENTER");
+
+      gotoxy(10,7);
+      printf("BLOCK ALLOCATOR");
+
+      gotoxy(10,9);
+      printf("PAGE ALLOCATOR");
+
+      gotoxy(10,11);
+      printf("EXIT\n\n");
+
+      gotoxy (0,18);
+      printf("Note-->1.IN BLOCK ALLOCATOR MEMORY IS NOT DIVIDED IT IS VARIABLE\n         AND ALLOCATION IS CONTIGOUS\n");
+      printf("\n       2.IN PAGE ALLOCATOR MEMORY IS DIVIDED INTO FIXED PAGES");
+
+      gotoxy(10,7);
+
+      int key1=1;
+        int loop_var1=1;
+        while(loop_var1)
+        {
+            int Ch1,Ch2;
+            Ch1=getch();
+            if(Ch1==224)                 //SCROLL KEY PRESSED
+            {
+                Ch2=getch();
+                switch(Ch2)
+                {
+                    case 72:key1--;                //UP KEY
+                             break;
+                    case 80:key1++;                //DOWN KEY
+                            break;
+                    default:key1=1;
+                            break;
+                }
+                if(key1<=0)
+                    key1=3;
+                if(key1>=4)
+                    key1=1;
+                gotoxy(10,(5+(2*key1)));
+            }
+                if(Ch1==13)         //ENTER KEY IS PRESSED
+                {
+                    loop_var1=0;
+                  system("cls");
+           switch(key1)
+           {
+               case 1:{
+                      block_allocator();
+                      break;
+                      }
+               case 2:{
+                      page_allocator();
+                      break;
+                      }
+               case 3:{
+                       choice2=0;
+                       break;
+                      }
+               default:{
+                       printf("INVALID CHOICE...ENTER AGAIN\n");
+                       choice2=1;
+                       break;
+                       }
+           }
+                }
+        }
+    }
+     gotoxy(40,10);
+    printf("THANKS\n");
+    gotoxy(43,11);
+    getch();
+    return 0;
+}
+   void block_allocator()
+   {
+    gotoxy(30,0);
+    printf("---BLOCK ALLOCATOR(Contigous)--");
+
+    gotoxy(10,10);
+    printf("ENTER MEMORY SIZE..[ ENTER MEMORY SIZE < 50 FOR CONVINIENCE ]..\n");
+
+    gotoxy(40,12);
+    scanf("%d",&mem_size);
+    block_space=mem_size;
+    system("cls");
+    int choice=1;
+
+    while(choice)
+    {
+        extra_flag=0;
+        gotoxy(10,5);
+        printf("ENTER");
+
+        gotoxy(10,7);
+        printf("FOR ALLOCATING(..Contigous..)");
+
+        gotoxy(10,9);
+        printf("FOR DEALLOCATING");
+
+        gotoxy(10,11);
+        printf("FOR DISPLAY");
+
+        gotoxy(10,13);
+        printf("DEFRAGMENTAION(.COMPACTING.)");
+
+        gotoxy(10,15);
+        printf("BACK TO MAIN MENU\n\n");
+
+        gotoxy(10,7);
+
+        int key=1;
+        int loop_var=1;
+        while(loop_var)
+        {
+            int ch1,ch2;
+            ch1=getch();
+            if(ch1==224)                 //SCROLL KEY PRESSED
+            {
+                ch2=getch();
+                switch(ch2)
+                {
+                    case 72:key--;                //UP KEY
+                             break;
+                    case 80:key++;                //DOWN KEY
+                            break;
+                    default:key=1;
+                            break;
+                }
+                if(key<=0)
+                    key=5;
+                if(key>=6)
+                    key=1;
+                gotoxy(10,(5+(2*key)));
+            }
+                if(ch1==13)         //ENTER KEY IS PRESSED
+                {
+                    loop_var=0;
+                  system("cls");
+           switch(key)
+           {
+               case 1:{
+                      allocate();
+                      break;
+                      }
+               case 2:{
+                      deallocate();
+                      break;
+                      }
+               case 3:{
+                      display();
+                      break;
+                      }
+               case 4:{
+                       remove_fragmentation();
+                       break;
+                      }
+               case 5:{
+                       choice=0;
+                       break;
+                      }
+               default:{
+                       printf("INVALID CHOICE...ENTER AGAIN\n");
+                       choice=1;
+                       break;
+                       }
+           }
+                }
+        }
+    }
+
+}
+
+void allocate()                                //CONTIGOUS MEMORY ALLOCATION (MEMORY IS BLOCK DIVIDED)
+{
+    int flag,flag3;
+    int i,j,k,p;
+
+    if(extra_flag==0){
+    gotoxy(30,0);
+    printf("----ALLOCATOR-----");
+    gotoxy(0,2);
+
+    flag=0;
+    while(1){
+    flag3=0;
+    printf("ENTER PROCESS ID\n");
+    scanf("%d",&p);
+
+    for(i=0;i<50;i++)
+    {
+        if(p_id1[i]==p)
+        {
+            system("cls");
+            printf("\n\nSORRY THIS PROCESS ID IS ALREADY ALLOCATED ..ALLOCATE ANOTHER PROCESS\n");
+            gotoxy(0,10);
+            printf("Note--><<As we are dong contigous memory location..\n         So one process can be allocated at a time>>\n");
+            gotoxy(10,18);
+            printf("Press any key to continue..");
+            getch();
+            system("cls");
+            flag3=1;
+            break;
+        }
+    }
+
+    if(flag3==0)
+        {
+              p_id=p;
+              break;
+        }
+
+    }
+
+    printf("ENTER MEMORY REQUIRED\n");
+    scanf("%d",&mem_reqd);
+    printf("Press any key to continue...\n");
+    getch();
+    system("cls");
+    }
+    if(mem_reqd==0)
+        flag=1;
+    if(mem_reqd!=0){
+
+    for(i=0;i<mem_size;i++)
+    {
+        if(arr[i]==0)
+        {
+            int count=0;
+            for(j=i;j<mem_size;j++)
+            {
+                if(arr[j]==0)
+                  {
+                      count++;
+                      if(count==mem_reqd)
+                       {
+                        for(k=i;k<=j;k++)
+                        {
+                            arr[k]=p_id;
+                            block_space--;;
+                        }
+                        flag=1;
+                        break;
+                       }
+                  }
+                  else
+                  break;
+             }
+        }
+        if(flag==1)
+            break;
+    }
+    }
+    if(flag==1)
+    {   if(mem_reqd!=0)
+        p_id1[al++]=p;
+        if(mem_reqd!=0)
+        printf("PROCESS WITH PROCESS_ID %d ALLOCATED FROM %d TO %d\n",p_id,i+1,i+mem_reqd);
+        else
+        printf("PROCESS NOT ALLOCATED AS MEMORY REQD=0\n");
+        display();
+    }
+    else
+    {
+
+        if(mem_reqd<=block_space)                             //if insufficient space is due to holes presnt
+        {
+            printf("YOU HAVE ENOUGH SPACE BUT NOT CONTIGOUS\n");
+            printf("FOR THAT YOU HAVE TO REMOVE FRAGMENTATION BY COMPACTING MEMORY\n(Press 1 for that)\n");
+            int f;
+            scanf("%d",&f);
+            if(f==1)
+        {
+            extra_flag=1;
+            remove_fragmentation();
+            printf("MEMORY COMPACTED\n");
+            allocate();
+        }
+    }
+    else
+    {
+        gotoxy(0,0);
+        printf("SORRY INSUFFICIENT SPACE..TRY AGAIN\n");
+        display();
+    }
+}
+}
+
+void deallocate()
+{
+    gotoxy(30,0);
+    printf("----DEALLOCATOR-----");
+    gotoxy(0,2);
+    int p_idd;
+    int flag1=0;
+    int i,j;
+    printf("ENTER PROCESS_ID TO DEALLOCATE\n");
+    scanf("%d",&p_idd);
+    for(i=0;i<50;i++)
+    {
+        if(p_id1[i]==p_idd)
+        {
+            p_id1[i]=0;
+            break;
+        }
+    }
+    printf("Press any key to continue...\n");
+    getch();
+    system("cls");
+    for(i=0;i<mem_size;i++)
+    {
+        if(arr[i]==p_idd)
+            {
+                flag1=1;
+                for(j=i;;j++)
+                {
+                    if(arr[j]!=p_idd)
+                        break;
+                        arr[j]=0;
+                        block_space++;
+                }
+            }
+            if(flag1==1)
+               {
+                   printf("PROCESS WITH PROCESS_ID %d DEALLOCATED\n",p_idd);
+                   display();
+                   break;
+               }
+    }
+    if(flag1==0)
+    {
+        printf("SORRY PROCESS WITH PROCESS_ID %d NOT FOUND\n",p_idd);
+        printf("Press any key to continue...\n");
+        getch();
+        system("cls");
+    }
+}
+
+void display()
+{
+    hole=0;
+    temp=0;
+    gotoxy(30,2);
+    printf("----DISPLAY_TERMINAL-----");
+    gotoxy(0,3);
+    int i;
+    int k=0;
+    for(i=0;i<mem_size;i++)
+    {
+        printf("%d ",arr[i]);
+        if(arr[i]==0&&k!=1)
+           {
+               hole++;
+               k=1;
+           }
+           if(arr[i]!=0)
+            k=0;
+        if((i+1)%10==0)
+        printf("\n");
+    }
+    gotoxy(10,12);
+    printf("MEMORY SPACE AVAILABLE-->  %d",block_space);
+    gotoxy(10,13);
+    printf("MEMORY OCCUPIED-->  %d",mem_size-block_space);
+    gotoxy(10,14);
+    printf("NO. OF HOLES->  %d",hole);
+    gotoxy(1,15);
+    printf("\nPress Any key to continue...\n");
+    getch();
+    system("cls");
+}
+
+void remove_fragmentation()
+{
+    int i;
+    int arr_dup[mem_size];
+    int c=0;
+    for(i=0;i<mem_size;i++)
+    {
+        if(arr[i]!=0)
+            arr_dup[c++]=arr[i];
+    }
+
+    for(i=0;i<mem_size;i++)
+    {
+        if(i<c)
+            arr[i]=arr_dup[i];
+        else
+            arr[i]=0;
+    }
+
+    printf("Press any key to continue...\n");
+    getch();
+    system("cls");
+    if(extra_flag==0)
+    {
+        printf("FRAGMENTATION REMOVED SUCCESSFULLY,NOW ALLOACATE");
+        display();
+    }
+
+
+}
+
+void gotoxy (int x, int y)
+{
+        coord.X = x; coord.Y = y; // X and Y coordinates
+        SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), coord);
+}
+
+void page_allocator()
+{
+    system("cls");
+     emptyMemory();
+    int choice4;
+    while(choice4) {
+        gotoxy(10,5);
+        printf("Please Select an option ....");
+
+       gotoxy(10,7);
+       printf("Allocate a process");
+
+       gotoxy(10,9);
+       printf("Deallocate a process");
+
+       gotoxy(10,11);
+       printf("Diaplay Terminal");
+
+       gotoxy(10,13);
+       printf("Back to main menu");
+
+       gotoxy(10,7);
+
+       int key2=1;
+        int loop_var2=1;
+        while(loop_var2)
+        {
+            int CH1,CH2;
+            CH1=getch();
+            if(CH1==224)                 //SCROLL KEY PRESSED
+            {
+                CH2=getch();
+                switch(CH2)
+                {
+                    case 72:key2--;                //UP KEY
+                             break;
+                    case 80:key2++;                //DOWN KEY
+                            break;
+                    default:key2=1;
+                            break;
+                }
+                if(key2<=0)
+                    key2=4;
+                if(key2>=5)
+                    key2=1;
+                gotoxy(10,(5+(2*key2)));
+            }
+                if(CH1==13)         //ENTER KEY IS PRESSED
+                {
+                    loop_var2=0;
+                  system("cls");
+           switch(key2)
+           {
+               case 1:{
+                      Allocate();
+                      break;
+                      }
+               case 2:{
+                      Deallocate();
+                      break;
+                      }
+               case 3:{
+                       Display();
+                       break;
+                      }
+
+               case 4:{
+                       choice4=0;
+                       break;
+                      }
+               default:{
+                       printf("INVALID CHOICE...ENTER AGAIN\n");
+                       choice4=1;
+                       break;
+                       }
+           }
+                }
+        }
+    }
+}
+
+
+void emptyMemory() {
+    int i,j;
+    for (i=0;i<TOTAL_PAGE;i++) {
+        for (j=0;j<PAGE_SIZE;j++) {
+            p[i].offSet[j]=0;
+        }
+        p[i].bit='i';
+    }
+    for (i=0;i<TOTAL_PAGE;i++) {
+        in[i].prcsId=0;
+        in[i].prcsLcn=0;
+        in[i].pageAqr=0;
+    }
+}
+
+void Allocate() {
+    system("cls");
+    int i,j,prcsId,prcsSize,size1;
+    gotoxy(15,8);
+    printf("Type process_id-->");
+    scanf("%d",&prcsId);
+
+    gotoxy(15,10);
+    printf("Type process_size-->");
+    scanf("%d",&prcsSize);
+    int temp = prcsSize;
+    int pageNeed=(prcsSize/PAGE_SIZE);
+    position=findPosition(prcsSize);
+    if (position==-1) {
+        printf("Not enough contagious pages.Please deallocate some pages.\n");
+        printf("Press any key to continue..");
+        getch();
+        system("cls");
+        return;
+    }
+    for (i=0;i<TOTAL_PAGE;i++) {
+        if(in[i].prcsId==0) {
+            break;
+        }
+        if(in[i].prcsId==prcsId) {
+            printf("This process id is already available. Try with a new process-id.\n");
+            printf("Press any key to continue..");
+            getch();
+            system("cls");
+            return;
+        }
+    }
+    fillInfo(prcsId,prcsSize);
+    if((float)prcsSize/PAGE_SIZE-prcsSize/PAGE_SIZE!=0) {
+    for (i=position;i<=position+prcsSize/PAGE_SIZE;i++) {
+        if (temp < PAGE_SIZE) {
+            size1=temp;
+        } else {
+            size1=PAGE_SIZE;
+        }
+        for (j=0;j<size1;j++) {
+            p[i].offSet[j]=prcsId;
+        }
+        if (temp>PAGE_SIZE) {
+            temp=temp-PAGE_SIZE;
+        }
+        p[i].bit='v';
+    }
+    } else {
+        for (i=position;i<position+prcsSize/PAGE_SIZE;i++) {
+        if (temp < PAGE_SIZE) {
+            size1=temp;
+        } else {
+            size1=PAGE_SIZE;
+        }
+        for (j=0;j<size1;j++) {
+            p[i].offSet[j]=prcsId;
+        }
+        if (temp>PAGE_SIZE) {
+            temp=temp-PAGE_SIZE;
+        }
+        p[i].bit='v';
+    }
+    }
+    gotoxy(15,12);
+    printf("Press any key to continue...");
+    getch();
+    system("cls");
+    Display();
+}
+
+void Display() {
+    int i,j;
+    gotoxy(25,0);
+    printf("DISPLAY_TERMINAL\n");
+    for (i=0;i<TOTAL_PAGE;i++) {
+        printf("Page %d ->  ",i);
+        for (j=0;j<PAGE_SIZE;j++) {
+                printf("%d\t",p[i].offSet[j]);
+        }
+        printf("%c\n",p[i].bit);
+    }
+    printf("Press any key to continue...");
+    getch();
+    system("cls");
+}
+
+int findPosition(int prcsSize) {
+    int i,j,c=0,temp;
+    int pageNeed=(prcsSize/PAGE_SIZE);
+    temp=pageAvailable;
+    pageAvailable=pageAvailable-pageNeed;
+    if(pageAvailable<0) {
+        pageAvailable=temp;
+        return -1;
+    }
+    for (i=0;i<TOTAL_PAGE;i++) {
+        if (p[i].bit=='i') {
+            for (j=0;j<pageNeed;j++) {
+                if (p[i+j].bit=='v') {
+                    break;
+                } else {
+                    c++;
+                }
+            }
+            if (c==pageNeed) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+void fillInfo(int prcsId,int prcsSize) {
+    int i=0,j,c=0;
+    int pageNeed=prcsSize/PAGE_SIZE+1;
+    while(in[i].prcsId!=0){
+        i++;
+    }
+    in[i].prcsId=prcsId;
+    in[i].prcsLcn=findPosition(prcsSize);
+    in[i].pageAqr=pageNeed;
+}
+
+void Deallocate() {
+    int prcsId,i,prcsFound=0,j,k;
+    gotoxy(10,8);
+    printf("Type process-id to deallocate it-->");
+    scanf("%d",&prcsId);
+    for (i=0;i<TOTAL_PAGE;i++) {
+        if(in[i].prcsId==prcsId) {
+            prcsFound=1;
+            break;
+        }
+    }
+    if(prcsFound==0) {
+            printf("\n\nThis process is not available.\n");
+    } else {
+        pageAvailable+=in[i].pageAqr;
+        for (j=in[i].prcsLcn;j<(in[i].prcsLcn) + (in[i].pageAqr);j++) {
+            for (k=0;k<PAGE_SIZE;k++) {
+                p[j].offSet[k]=0;
+            }
+            p[j].bit='i';
+        }
+        in[i].prcsId=0;
+        in[i].prcsLcn=0;
+        in[i].pageAqr=0;
+    }
+    gotoxy(15,14);
+    printf("Press any key to continue...");
+    getch();
+    system("cls");
+    Display();
+}
